@@ -305,10 +305,25 @@ let RAW=[
  {agency:'(unlabeled)', hasName:false, cap:1.0, scale:1, enab:1.0, tier:'Level 1 - Foundational', risk:8, rl:'hi', play:'Build Foundations', next:'Core skills + guided support'},
  {agency:'JK test', hasName:true, cap:2.0, scale:1, enab:2.0, tier:'Level 1 - Foundational', risk:7, rl:'hi', play:'Build Foundations', next:'Core skills + guided support'},
 ];
-render(RAW);
-setStatus('Showing the 3 current responses. Drop in a new Forms export to replace with live data.');
 // keep uploads flowing into RAW so the hide-test toggle re-renders correctly
 const _ingest=ingest; ingest=(rows,src)=>{ const scored=scoreRows(rows); if(scored.length){RAW=scored;} _ingest(rows,src); };
+render(RAW);
+setStatus('Loading shared responses…');
+// SHARED DATA: on load, pull a data file committed to the repo so EVERYONE sees the same results.
+// To update for all viewers: export the Forms responses, save as responses.xlsx (or responses.csv),
+// upload to the repo root, and commit. Viewers just refresh.
+(async function loadShared(){
+  for(const name of ['responses.xlsx','responses.csv']){
+    try{
+      const r=await fetch(name+'?t='+Date.now(),{cache:'no-store'});
+      if(!r.ok) continue;
+      if(/\.xlsx$/i.test(name)){ const wb=XLSX.read(await r.arrayBuffer(),{type:'array'}); const ws=wb.Sheets[wb.SheetNames[0]]; ingest(XLSX.utils.sheet_to_json(ws,{defval:null}), name+' (shared)'); }
+      else { ingest(csvToRows(await r.text()), name+' (shared)'); }
+      return;
+    }catch(e){}
+  }
+  setStatus('Showing sample data. To publish results for everyone, commit a <b>responses.xlsx</b> or <b>responses.csv</b> to the repo — or drop a file here to preview locally.');
+})();
 </script>
 </body>
 </html>
