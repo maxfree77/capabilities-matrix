@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agency Competency Capability and Scalability</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --surface-1:#fcfcfb; --page:#f4f4f1;
+    --text-primary:#0b0b0b; --text-secondary:#52514e; --muted:#898781;
+    --gridline:#e1e0d9; --baseline:#c3c2b7;
+    --series-1:#2a78d6; --good:#0ca30c; --warning:#fab219; --critical:#d03b3b;
+    --quad:rgba(11,11,11,0.028); --quad-hot:rgba(208,59,59,0.06);
+    --border:rgba(11,11,11,0.10); --tile:#ffffff; --ring:#fcfcfb;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --surface-1:#1a1a19; --page:#0d0d0d;
+      --text-primary:#ffffff; --text-secondary:#c3c2b7; --muted:#898781;
+      --gridline:#2c2c2a; --baseline:#383835;
+      --series-1:#3987e5; --good:#0ca30c; --warning:#fab219; --critical:#e05555;
+      --quad:rgba(255,255,255,0.03); --quad-hot:rgba(224,85,85,0.09);
+      --border:rgba(255,255,255,0.10); --tile:#222220; --ring:#1a1a19;
+    }
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--page); color:var(--text-primary); font-family:system-ui,-apple-system,"Segoe UI",sans-serif;}
+  .wrap{max-width:1280px; margin:0 auto; padding:28px 32px 48px;}
+  h1{font-size:24px; font-weight:700;}
+  .lead{font-size:14px; color:var(--text-secondary); margin-top:5px; max-width:900px;}
+
+  /* controls */
+  .controls{display:flex; gap:12px; align-items:stretch; margin:18px 0; flex-wrap:wrap;}
+  .drop{flex:1; min-width:320px; border:1.5px dashed var(--baseline); border-radius:11px; padding:16px 18px;
+    background:var(--surface-1); display:flex; align-items:center; gap:14px; cursor:pointer; transition:border-color .15s,background .15s;}
+  .drop.hot{border-color:var(--series-1); background:color-mix(in srgb,var(--series-1) 8%,var(--surface-1));}
+  .drop .ic{font-size:26px;}
+  .drop .t{font-size:13.5px; font-weight:600;}
+  .drop .s{font-size:11.5px; color:var(--muted); margin-top:2px;}
+  .opts{display:flex; flex-direction:column; gap:8px; justify-content:center; font-size:12.5px; color:var(--text-secondary);}
+  .opts label{display:flex; align-items:center; gap:7px; cursor:pointer;}
+  .btn{font:inherit; font-size:12.5px; font-weight:600; padding:7px 13px; border-radius:8px; cursor:pointer;
+    border:1px solid var(--border); background:var(--tile); color:var(--text-primary);}
+  .btn.ghost{background:transparent;}
+  .paste{width:100%; min-height:0; height:0; overflow:hidden; transition:height .2s; margin-bottom:0;}
+  .paste.open{height:150px; margin-bottom:14px;}
+  textarea{width:100%; height:150px; font-family:ui-monospace,Menlo,monospace; font-size:12px; padding:10px;
+    border:1px solid var(--border); border-radius:9px; background:var(--surface-1); color:var(--text-primary); resize:vertical;}
+  .status{font-size:12px; color:var(--muted); margin:-4px 0 16px;}
+  .status b{color:var(--text-secondary);}
+  .err{color:var(--critical);}
+
+  /* KPI + chart card */
+  .card{background:var(--surface-1); border:1px solid var(--border); border-radius:12px; padding:22px 24px; margin-bottom:20px;}
+  .kpis{display:flex; gap:14px; margin-bottom:20px; flex-wrap:wrap;}
+  .kpi{flex:1; min-width:120px; background:var(--tile); border:1px solid var(--border); border-radius:10px; padding:13px 16px; position:relative;}
+  .kpi .dot{width:9px;height:9px;border-radius:50%;position:absolute;top:15px;right:14px;}
+  .kpi .n{font-size:30px; font-weight:700; line-height:1;}
+  .kpi .k{font-size:12px; color:var(--text-secondary); margin-top:6px;}
+  .dot.hi{background:var(--critical);} .dot.med{background:var(--warning);} .dot.low{background:var(--good);}
+
+  .chartrow{display:flex; gap:26px;}
+  .left{width:560px;}
+  .ylab{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.03em;text-transform:uppercase;margin-bottom:5px;}
+  .plotwrap{display:flex; gap:8px; height:380px;}
+  .yaxis{display:flex;flex-direction:column;justify-content:space-between;align-items:flex-end;font-size:10px;color:var(--muted);padding:2px 0 18px;font-variant-numeric:tabular-nums;}
+  .plot{position:relative;flex:1;border-left:1px solid var(--baseline);border-bottom:1px solid var(--baseline);}
+  .q{position:absolute;width:50%;height:50%;}
+  .q.tl{top:0;left:0;}.q.tr{top:0;right:0;}.q.bl{bottom:0;left:0;}.q.br{bottom:0;right:0;}
+  .q .qfill{position:absolute;inset:3px;border-radius:6px;background:var(--quad);}
+  .q.bl .qfill{background:var(--quad-hot);}
+  .q .qname{position:absolute;font-size:11px;font-weight:700;color:var(--text-secondary);padding:7px 9px;opacity:.9;}
+  .q .qsub{display:block;font-size:9px;font-weight:500;color:var(--muted);margin-top:1px;}
+  .q.tl .qname,.q.bl .qname{left:0;}.q.tr .qname,.q.br .qname{right:0;text-align:right;}
+  .q.tl .qname,.q.tr .qname{top:0;}.q.bl .qname,.q.br .qname{bottom:0;}
+  .cross{position:absolute;background:var(--gridline);}
+  .bub{position:absolute;border-radius:50%;transform:translate(-50%,50%);box-shadow:0 0 0 2px var(--ring);}
+  .bub.hi{background:var(--critical);}.bub.med{background:var(--warning);}.bub.low{background:var(--good);}
+  .blabel{position:absolute;transform:translate(-50%,50%);font-size:10.5px;font-weight:600;color:var(--text-primary);white-space:nowrap;pointer-events:none;}
+  .xlab{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.03em;text-transform:uppercase;text-align:center;margin-top:4px;}
+  .xaxis{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-left:26px;padding:0 2px;font-variant-numeric:tabular-nums;}
+
+  .right{flex:1;display:flex;flex-direction:column;}
+  .right h3{font-size:13px;font-weight:700;margin-bottom:8px;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{text-align:left;font-size:10.5px;letter-spacing:.03em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--baseline);}
+  td{padding:7px 8px;border-bottom:1px solid var(--gridline);}
+  td.num{text-align:center;font-variant-numeric:tabular-nums;}
+  .pill{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap;}
+  .pill.hi{color:#fff;background:var(--critical);}.pill.med{color:#3a2c00;background:var(--warning);}.pill.low{color:#fff;background:var(--good);}
+  .foot{font-size:11px;color:var(--muted);margin-top:16px;line-height:1.5;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Agency Competency Capability and Scalability</h1>
+  <div class="lead">Drop in the Microsoft Forms export (or paste the rows) after everyone completes the questionnaire. Scoring runs in the browser using the Capability Scoring Model — the quadrant, risk tiles, and table populate instantly.</div>
+
+  <div class="controls">
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept=".xlsx,.xls,.csv" hidden>
+      <span class="ic">📄</span>
+      <span><span class="t">Drop the Forms export here, or click to choose</span>
+      <span class="s">.xlsx / .xls / .csv — the raw Microsoft Forms download</span></span>
+    </label>
+    <div class="opts">
+      <button class="btn ghost" id="pasteToggle">Paste rows instead ▾</button>
+      <label><input type="checkbox" id="hideTest" checked> Hide test rows (blank agency / “test”)</label>
+      <button class="btn" id="dl">Download scored CSV</button>
+    </div>
+  </div>
+  <div class="paste" id="pasteBox"><textarea id="pasteArea" placeholder="Paste tab- or comma-separated rows including the header row from the Forms export…"></textarea>
+    <button class="btn" id="pasteRun" style="margin-top:8px;">Score pasted rows</button></div>
+
+  <div class="status" id="status"></div>
+
+  <div class="card">
+    <div class="kpis" id="kpis"></div>
+    <div class="chartrow">
+      <div class="left">
+        <div class="ylab">▲ Scalability (reach / adoption)</div>
+        <div class="plotwrap">
+          <div class="yaxis"><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span><span>0</span></div>
+          <div class="plot" id="plot">
+            <div class="q tl"><div class="qfill"></div><div class="qname">Deepen Capability<span class="qsub">Widely shared · needs depth</span></div></div>
+            <div class="q tr"><div class="qfill"></div><div class="qname">Sustain &amp; Mentor<span class="qsub">Deep + resilient · mentor others</span></div></div>
+            <div class="q bl"><div class="qfill"></div><div class="qname">Build Foundations<span class="qsub">Fragile base · core skills</span></div></div>
+            <div class="q br"><div class="qfill"></div><div class="qname">Distribute Expertise<span class="qsub">Deep but concentrated</span></div></div>
+          </div>
+        </div>
+        <div class="xaxis"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></div>
+        <div class="xlab">Capability (depth of platform mastery) ▶</div>
+      </div>
+      <div class="right">
+        <h3>Scored agencies — prioritized by risk</h3>
+        <table id="tbl"></table>
+      </div>
+    </div>
+  </div>
+  <div class="foot" id="foot"></div>
+</div>
+
+<script>
+"use strict";
+// ---------- scoring model (mirrors Civic_Platform_Capability_Scoring_Model.xlsx) ----------
+const Q8={'0':1,'1-3':2,'4-6':3.5,'7+':5}, Q9={0:1,1:2,2:3,3:4,4:5,5:5};
+function lnum(v){ if(v==null) return null; const s=String(v).trim().replace(/–/g,'-'); return (s[0]==='L'&&/\d/.test(s[1]))?+s[1]:null; }
+function tier(sc){ return sc<2?'Level 1 - Foundational':sc<3?'Level 2 - Operational':sc<4?'Level 3 - Advanced':sc<4.5?'Level 4 - Platform Owner':'Level 5 - Expert'; }
+function risklvl(r){ return r<=2?'low':r<=5?'med':'hi'; }
+function play(cap,scale){ const hc=cap>3,hs=scale>3;
+  if(hc&&hs)return['Sustain & Mentor','Maintain depth · mentor others · continuing ed'];
+  if(hc&&!hs)return['Distribute Expertise','Spread knowledge beyond key people'];
+  if(!hc&&hs)return['Deepen Capability','Build advanced, role-based depth'];
+  return['Build Foundations','Core skills + guided support']; }
+function certCount(v){ if(v==null) return 0; const p=String(v).split(';').map(x=>x.trim()).filter(x=>x&&x.toLowerCase()!=='none'); return p.length; }
+
+// map Forms columns by keyword in the (long) question text
+const KEYS={agency:'agency name being assessed',c1:'components',c2:'configuring and modifying',c3:'diagnose and resolve',
+  c4:'manage changes',c5:'independently',c6:'improve processes',scale:'broadly distributed',train:'release training',acp:'certified professional'};
+function findCol(headers,needle){ needle=needle.toLowerCase(); return headers.find(h=>String(h).toLowerCase().includes(needle)); }
+
+function scoreRows(rows){
+  if(!rows.length) return [];
+  const H=Object.keys(rows[0]);
+  const col={}; for(const k in KEYS) col[k]=findCol(H,KEYS[k]);
+  const out=[];
+  for(const r of rows){
+    const C=['c1','c2','c3','c4','c5','c6'].map(k=>lnum(r[col[k]]));
+    if(C.some(x=>x==null)) continue;                       // skip incomplete
+    const cap=C.reduce((a,b)=>a+b,0)/6;
+    const scale=lnum(r[col.scale])||1;
+    const q8=Q8[String(r[col.train]).trim()]??1;
+    const ncert=certCount(r[col.acp]); const q9=Q9[Math.min(ncert,5)]??1;
+    const enab=(q8+q9)/2;
+    let adj=0; if(scale<=2)adj-=1; if(enab<=2)adj-=0.5; if(scale>=4&&enab>=4)adj+=0.5;
+    const risk=(5-scale)+(5-enab);
+    const [pl,nxt]=play(cap,scale);
+    const agencyRaw=(r[col.agency]!=null&&String(r[col.agency]).trim())?String(r[col.agency]).trim():'';
+    out.push({agency:agencyRaw||'(unlabeled)', hasName:!!agencyRaw, cap:+cap.toFixed(3), scale, enab:+enab.toFixed(3),
+      tier:tier(Math.max(1,cap+adj)), risk:+risk.toFixed(2), rl:risklvl(risk), play:pl, next:nxt});
+  }
+  return out;
+}
+function isTest(a){ return !a.hasName || /\btest\b/i.test(a.agency); }
+
+// ---------- render ----------
+let LAST=[];
+function render(all){
+  const hide=document.getElementById('hideTest').checked;
+  const data=hide?all.filter(a=>!isTest(a)):all.slice();
+  LAST=data;
+  data.sort((x,y)=>y.risk-x.risk);
+  // KPIs
+  const c={hi:0,med:0,low:0}; data.forEach(a=>c[a.rl]++);
+  document.getElementById('kpis').innerHTML=
+    `<div class="kpi"><span class="dot"></span><div class="n">${data.length}</div><div class="k">Agencies scored</div></div>`+
+    `<div class="kpi"><span class="dot hi"></span><div class="n">${c.hi}</div><div class="k">High risk — act now</div></div>`+
+    `<div class="kpi"><span class="dot med"></span><div class="n">${c.med}</div><div class="k">Medium — on the path</div></div>`+
+    `<div class="kpi"><span class="dot low"></span><div class="n">${c.low}</div><div class="k">Low — champion</div></div>`;
+  // plot
+  const plot=document.getElementById('plot');
+  plot.querySelectorAll('.bub,.blabel,.cross').forEach(e=>e.remove());
+  const W=plot.clientWidth,Hh=plot.clientHeight, px=v=>v/5*W, py=v=>v/5*Hh;
+  const cx=document.createElement('div');cx.className='cross';cx.style.cssText=`left:${px(3)}px;top:0;width:1px;height:100%`;plot.appendChild(cx);
+  const cy=document.createElement('div');cy.className='cross';cy.style.cssText=`bottom:${py(3)}px;left:0;height:1px;width:100%`;plot.appendChild(cy);
+  // jitter co-located points
+  const seen={};
+  data.forEach((a,i)=>{
+    const key=a.cap.toFixed(1)+','+a.scale;
+    const n=seen[key]=(seen[key]||0); seen[key]++;
+    const ang=n*2.4, rad=n?11:0;
+    const jx=Math.cos(ang)*rad, jy=Math.sin(ang)*rad;
+    const d=Math.max(18,Math.min(40, 22));
+    const b=document.createElement('div');b.className='bub '+a.rl;
+    b.style.cssText=`width:${d}px;height:${d}px;left:${px(a.cap)+jx}px;bottom:${py(a.scale)+jy}px`;
+    b.title=`${a.agency} — Cap ${a.cap} / Scale ${a.scale} / Risk ${a.risk}`;
+    plot.appendChild(b);
+    if(data.length<=14){
+      const l=document.createElement('div');l.className='blabel';l.textContent=a.agency;
+      l.style.cssText=`left:${px(a.cap)+jx}px;bottom:${py(a.scale)+jy+(n%2?-(d/2+13):(d/2+11))}px`;
+      plot.appendChild(l);
+    }
+  });
+  // table
+  const rows=data.map(a=>`<tr><td>${a.agency}</td><td class="num">${a.cap}</td><td class="num">${a.scale}</td>
+    <td>${a.play}</td><td><span class="pill ${a.rl}">${a.rl==='hi'?'High':a.rl==='med'?'Med':'Low'} ${a.risk}</span></td></tr>`).join('');
+  document.getElementById('tbl').innerHTML=`<thead><tr><th>Agency</th><th>Cap</th><th>Scale</th><th>Priority Focus</th><th>Risk</th></tr></thead><tbody>${rows}</tbody>`;
+  document.getElementById('foot').innerHTML=`Scored per the Capability Scoring Model · Risk = (5−Scalability)+(5−Enablement) · ${all.length} response(s) loaded, ${all.length-data.length} hidden. Bubble color = risk; identical scores are jittered for visibility. Labels shown when ≤14 agencies.`;
+}
+
+// ---------- input handling ----------
+function setStatus(msg,err){ const s=document.getElementById('status'); s.innerHTML=msg; s.className='status'+(err?' err':''); }
+function handleWorkbook(wb){
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(ws,{defval:null});
+  ingest(rows,'file');
+}
+function ingest(rows,src){
+  try{
+    const scored=scoreRows(rows);
+    if(!scored.length){ setStatus('No complete responses found — check that the export includes the 6 capability questions.',true); return; }
+    setStatus(`<b>${scored.length}</b> response(s) scored from ${src}. Toggle test rows above; download the scored CSV anytime.`);
+    render(scored);
+  }catch(e){ setStatus('Could not parse: '+e.message,true); }
+}
+const drop=document.getElementById('drop'), file=document.getElementById('file');
+file.addEventListener('change',e=>{ const f=e.target.files[0]; if(f) readFile(f); });
+['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hot');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hot');}));
+drop.addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f) readFile(f); });
+function readFile(f){
+  const r=new FileReader();
+  if(/\.csv$/i.test(f.name)){ r.onload=()=>ingest(csvToRows(r.result),f.name); r.readAsText(f); }
+  else{ r.onload=()=>{ try{ handleWorkbook(XLSX.read(r.result,{type:'array'})); }catch(e){ setStatus('XLSX parse failed (offline? use paste): '+e.message,true);} }; r.readAsArrayBuffer(f); }
+}
+function csvToRows(text){
+  const lines=text.replace(/\r/g,'').split('\n').filter(l=>l.trim());
+  const delim=lines[0].includes('\t')?'\t':',';
+  const split=l=>{const o=[];let c='',q=false;for(const ch of l){if(ch==='"')q=!q;else if(ch===delim&&!q){o.push(c);c='';}else c+=ch;}o.push(c);return o.map(s=>s.trim());};
+  const H=split(lines[0]);
+  return lines.slice(1).map(l=>{const v=split(l);const o={};H.forEach((h,i)=>o[h]=v[i]??null);return o;});
+}
+document.getElementById('pasteToggle').addEventListener('click',()=>document.getElementById('pasteBox').classList.toggle('open'));
+document.getElementById('pasteRun').addEventListener('click',()=>{ const t=document.getElementById('pasteArea').value.trim(); if(t) ingest(csvToRows(t),'pasted rows'); });
+document.getElementById('hideTest').addEventListener('change',()=>{ if(RAW) render(RAW); });
+document.getElementById('dl').addEventListener('click',()=>{
+  if(!LAST.length) return;
+  const cols=['agency','cap','scale','enab','tier','risk','rl','play','next'];
+  const head=['Agency Name','Capability Score','Scalability Score','Enablement Score','Final Maturity Tier','Risk Score','Risk Level','Priority Focus','Recommended Next Step'];
+  const esc=v=>/[",\n]/.test(v)?'"'+String(v).replace(/"/g,'""')+'"':v;
+  const rl={hi:'High',med:'Medium',low:'Low'};
+  const csv=[head.join(',')].concat(LAST.map(a=>cols.map(c=>esc(c==='rl'?rl[a[c]]:a[c])).join(','))).join('\n');
+  const b=new Blob([csv],{type:'text/csv'}); const u=URL.createObjectURL(b);
+  const a=document.createElement('a');a.href=u;a.download='AE_Account_Portfolio_Data.csv';a.click();URL.revokeObjectURL(u);
+});
+
+// ---------- seed with the current 3 live responses so it renders on open ----------
+let RAW=[
+ {agency:'Santa Clara', hasName:true, cap:1.0, scale:1, enab:1.0, tier:'Level 1 - Foundational', risk:8, rl:'hi', play:'Build Foundations', next:'Core skills + guided support'},
+ {agency:'(unlabeled)', hasName:false, cap:1.0, scale:1, enab:1.0, tier:'Level 1 - Foundational', risk:8, rl:'hi', play:'Build Foundations', next:'Core skills + guided support'},
+ {agency:'JK test', hasName:true, cap:2.0, scale:1, enab:2.0, tier:'Level 1 - Foundational', risk:7, rl:'hi', play:'Build Foundations', next:'Core skills + guided support'},
+];
+render(RAW);
+setStatus('Showing the 3 current responses. Drop in a new Forms export to replace with live data.');
+// keep uploads flowing into RAW so the hide-test toggle re-renders correctly
+const _ingest=ingest; ingest=(rows,src)=>{ const scored=scoreRows(rows); if(scored.length){RAW=scored;} _ingest(rows,src); };
+</script>
+</body>
+</html>
